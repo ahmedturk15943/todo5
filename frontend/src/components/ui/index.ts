@@ -1,1 +1,1 @@
-"""UI components package."""
+// UI components package

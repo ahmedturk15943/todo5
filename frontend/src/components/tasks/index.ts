@@ -1,1 +1,1 @@
-"""Tasks components package."""
+// Tasks components package

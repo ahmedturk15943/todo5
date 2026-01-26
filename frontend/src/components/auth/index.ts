@@ -1,1 +1,1 @@
-"""Auth components package."""
+// Auth components package

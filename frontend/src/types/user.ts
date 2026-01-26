@@ -1,4 +1,4 @@
-"""User type definitions."""
+// User type definitions
 
 export interface User {
   id: string // UUID

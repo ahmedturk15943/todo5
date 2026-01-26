@@ -1,4 +1,4 @@
-"""Task type definitions."""
+// Task type definitions
 
 export interface Task {
   id: number
