@@ -87,11 +87,18 @@ async def health_check():
 
 
 # Import and include routers
-from .api.routes import auth, tasks, chat
+from .api.routes import auth, tasks
 
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(tasks.router, prefix="/api/users", tags=["Tasks"])
-app.include_router(chat.router, tags=["Chat"])
+
+# Chat router - optional, only load if dependencies are available
+try:
+    from .api.routes import chat
+    app.include_router(chat.router, tags=["Chat"])
+    logger.info("Chat router loaded successfully")
+except Exception as e:
+    logger.warning(f"Chat router not loaded: {e}")
 
 
 
