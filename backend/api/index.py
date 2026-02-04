@@ -24,29 +24,11 @@ if not os.getenv("DEBUG"):
 if not os.getenv("LOG_LEVEL"):
     os.environ["LOG_LEVEL"] = "INFO"
 
-# Mark as Vercel environment
+# Mark as Vercel environment to skip DB init
 os.environ["VERCEL"] = "1"
 
-try:
-    # Import app after environment is set
-    from src.main import app
+# Import app after environment is set
+from src.main import app
 
-    # Export the app for Vercel (must be named 'app')
-    app = app
-except Exception as e:
-    # If import fails, create a minimal app for debugging
-    from fastapi import FastAPI
-    app = FastAPI()
-
-    @app.get("/")
-    async def root():
-        return {
-            "error": "Failed to initialize main app",
-            "details": str(e),
-            "type": type(e).__name__
-        }
-
-    @app.get("/health")
-    async def health():
-        return {"status": "error", "message": str(e)}
-
+# Export the app for Vercel
+app = app

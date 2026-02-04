@@ -332,7 +332,7 @@ import asyncio
 
 from ...database import get_session
 from ...services.chat_service import ChatService
-from ...agents.todo_agent import todo_agent
+from ...agents.todo_agent import get_todo_agent
 
 logger = logging.getLogger(__name__)
 
@@ -379,7 +379,8 @@ async def chat(  # <-- async def
 
         # Process message with agent (async)
         try:
-            assistant_response, tool_calls = await todo_agent.process_message(
+            agent = get_todo_agent()
+            assistant_response, tool_calls = await agent.process_message(
                 user_id=user_id,
                 message=request.message,
                 conversation_history=history

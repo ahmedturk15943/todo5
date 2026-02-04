@@ -303,5 +303,15 @@ Be conversational and helpful. Always confirm when you've completed an action.""
         return contents
 
 
-# Global agent instance
-todo_agent = TodoAgent()
+# Global agent instance - lazy initialization
+_todo_agent = None
+
+def get_todo_agent():
+    """Get or create the global TodoAgent instance."""
+    global _todo_agent
+    if _todo_agent is None:
+        _todo_agent = TodoAgent()
+    return _todo_agent
+
+# For backward compatibility
+todo_agent = None  # Will be initialized on first use
