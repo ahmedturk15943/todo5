@@ -27,6 +27,6 @@ if not os.getenv("LOG_LEVEL"):
 # Import app after environment is set
 from src.main import app
 
-# Export the app for Vercel
-handler = app
+# Export the app for Vercel (must be named 'app')
+app = app
 

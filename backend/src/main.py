@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -52,8 +53,15 @@ app.add_exception_handler(Exception, generic_exception_handler)
 async def startup_event():
     """Initialize database on startup."""
     logger.info("Starting up Todo API...")
-    await init_db()
-    logger.info("Database initialized successfully")
+    try:
+        # In serverless, skip DB init to avoid cold start issues
+        if not os.getenv("VERCEL"):
+            await init_db()
+            logger.info("Database initialized successfully")
+        else:
+            logger.info("Skipping DB init in serverless environment")
+    except Exception as e:
+        logger.warning(f"Database initialization skipped: {e}")
 
 
 @app.on_event("shutdown")
