@@ -45,6 +45,7 @@
 """Configuration management for the Todo backend application."""
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 from typing import List, Optional
 
 
@@ -55,8 +56,8 @@ class Settings(BaseSettings):
     database_url: str
 
     # AI Providers
-    openai_api_key: Optional[str] = None   # ✅ optional now
-    gemini_api_key: Optional[str] = None   # ✅ added
+    openai_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
 
     # Authentication
     better_auth_secret: str
@@ -75,8 +76,19 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
-        str_strip_whitespace=True,  # Strip whitespace from string values
     )
+
+    @field_validator('debug', mode='before')
+    @classmethod
+    def parse_debug(cls, v):
+        """Strip whitespace and parse boolean from environment variable."""
+        if isinstance(v, str):
+            v = v.strip().lower()
+            if v in ('true', '1', 'yes', 'on'):
+                return True
+            elif v in ('false', '0', 'no', 'off', ''):
+                return False
+        return v
 
     @property
     def cors_origins_list(self) -> List[str]:
