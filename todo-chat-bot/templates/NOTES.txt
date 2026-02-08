@@ -1,0 +1,25 @@
+1. Get the application URL by running these commands:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else if contains "NodePort" .Values.service.type }}
+  export FRONTEND_NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "todo-chat-bot.fullname" . }}-frontend)
+  export BACKEND_NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "todo-chat-bot.fullname" . }}-backend)
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "Frontend URL: http://$NODE_IP:$FRONTEND_NODE_PORT"
+  echo "Backend URL: http://$NODE_IP:$BACKEND_NODE_PORT"
+{{- else if contains "LoadBalancer" .Values.service.type }}
+     NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+           You can watch its status by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "todo-chat-bot.fullname" . }}-frontend'
+  export FRONTEND_SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "todo-chat-bot.fullname" . }}-frontend --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  export BACKEND_SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "todo-chat-bot.fullname" . }}-backend --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo "Frontend URL: http://$FRONTEND_SERVICE_IP:{{ .Values.frontend.service.port }}"
+  echo "Backend URL: http://$BACKEND_SERVICE_IP:{{ .Values.backend.service.port }}"
+{{- else if contains "ClusterIP" .Values.service.type }}
+  echo "Services are deployed with ClusterIP type. You can port-forward to access them locally."
+  echo "For frontend: kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "todo-chat-bot.fullname" . }}-frontend 8080:{{ .Values.frontend.service.port }}"
+  echo "For backend: kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "todo-chat-bot.fullname" . }}-backend 8081:{{ .Values.backend.service.port }}"
+{{- end }}
