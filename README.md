@@ -1,4 +1,4 @@
-# Todo Application - Phase II (Full-Stack Multi-User Web App)
+# Todo Application - Phase II (Full-Stack Multi-User Web App By Ahmed Raza)
 
 **Version**: 2.0.0
 **Phase**: Phase II - Multi-User Web Application
