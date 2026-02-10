@@ -1,0 +1,513 @@
+# Kafka Event Schemas
+
+**Feature**: Advanced Cloud Deployment with Enhanced Task Management
+**Date**: 2026-02-10
+**Version**: 1.0
+
+## Overview
+
+This document defines the event schemas for Kafka topics used in the event-driven architecture. All events use JSON format with versioning for schema evolution.
+
+## Topics
+
+| Topic Name | Purpose | Producers | Consumers |
+|------------|---------|-----------|-----------|
+| `task-events` | All task CRUD operations | Backend API | Recurring Service, Audit Service |
+| `reminders` | Scheduled reminder triggers | Backend API, Dapr Jobs | Notification Service |
+| `task-updates` | Real-time client sync | Backend API, All Services | WebSocket Service |
+
+## Event Schemas
+
+### 1. Task Event (task-events topic)
+
+**Purpose**: Published whenever a task is created, updated, completed, or deleted.
+
+**Schema**:
+```json
+{
+  "schema_version": "1.0",
+  "event_id": "uuid-v4",
+  "event_type": "created | updated | completed | deleted",
+  "timestamp": "2026-02-10T14:30:00Z",
+  "task_id": 123,
+  "user_id": "user-uuid",
+  "task_data": {
+    "id": 123,
+    "title": "Task title",
+    "description": "Task description",
+    "status": "incomplete | complete",
+    "priority": "high | medium | low",
+    "due_date": "2026-02-15T10:00:00Z",
+    "recurring_pattern_id": 456,
+    "parent_task_id": null,
+    "tags": ["work", "urgent"],
+    "created_at": "2026-02-10T14:30:00Z",
+    "updated_at": "2026-02-10T14:30:00Z",
+    "completed_at": null,
+    "version": 1
+  },
+  "changes": {
+    "field": "priority",
+    "old_value": "medium",
+    "new_value": "high"
+  },
+  "metadata": {
+    "source": "web | mobile | api | chatbot",
+    "ip_address": "192.168.1.1",
+    "user_agent": "Mozilla/5.0..."
+  }
+}
+```
+
+**Field Descriptions**:
+- `schema_version`: Schema version for evolution (current: "1.0")
+- `event_id`: Unique identifier for this event (UUID v4)
+- `event_type`: Type of operation performed
+- `timestamp`: When the event occurred (ISO 8601 UTC)
+- `task_id`: ID of the affected task
+- `user_id`: ID of the user who performed the action
+- `task_data`: Complete task object after the operation
+- `changes`: What changed (for update events only)
+- `metadata`: Additional context about the operation
+
+**Event Types**:
+
+**created**:
+```json
+{
+  "event_type": "created",
+  "task_data": { /* full task object */ },
+  "changes": null
+}
+```
+
+**updated**:
+```json
+{
+  "event_type": "updated",
+  "task_data": { /* full task object */ },
+  "changes": {
+    "field": "title",
+    "old_value": "Old Title",
+    "new_value": "New Title"
+  }
+}
+```
+
+**completed**:
+```json
+{
+  "event_type": "completed",
+  "task_data": {
+    "status": "complete",
+    "completed_at": "2026-02-10T14:30:00Z",
+    /* ... other fields */
+  },
+  "changes": {
+    "field": "status",
+    "old_value": "incomplete",
+    "new_value": "complete"
+  }
+}
+```
+
+**deleted**:
+```json
+{
+  "event_type": "deleted",
+  "task_data": { /* task object before deletion */ },
+  "changes": null
+}
+```
+
+**Consumer Actions**:
+- **Recurring Service**: On `completed` event, check if task has `recurring_pattern_id`, spawn next occurrence
+- **Audit Service**: On all events, write to `activity_logs` table
+
+---
+
+### 2. Reminder Event (reminders topic)
+
+**Purpose**: Published when a reminder needs to be sent to a user.
+
+**Schema**:
+```json
+{
+  "schema_version": "1.0",
+  "event_id": "uuid-v4",
+  "event_type": "reminder.due | reminder.scheduled | reminder.cancelled",
+  "timestamp": "2026-02-10T14:30:00Z",
+  "reminder_id": 789,
+  "task_id": 123,
+  "user_id": "user-uuid",
+  "remind_at": "2026-02-15T09:00:00Z",
+  "task_data": {
+    "id": 123,
+    "title": "Task title",
+    "description": "Task description",
+    "due_date": "2026-02-15T10:00:00Z",
+    "priority": "high"
+  },
+  "notification_preferences": {
+    "web_push_enabled": true,
+    "email_enabled": true,
+    "in_app_enabled": true,
+    "timezone": "America/New_York"
+  },
+  "metadata": {
+    "source": "dapr_jobs | manual",
+    "job_id": "dapr-job-uuid"
+  }
+}
+```
+
+**Field Descriptions**:
+- `event_type`: Type of reminder event
+  - `reminder.due`: Reminder time has arrived, send notification
+  - `reminder.scheduled`: Reminder was scheduled (informational)
+  - `reminder.cancelled`: Reminder was cancelled (task completed or deleted)
+- `reminder_id`: ID of the reminder record
+- `task_id`: ID of the task this reminder is for
+- `remind_at`: When the reminder should fire
+- `task_data`: Relevant task information for notification
+- `notification_preferences`: User's notification settings
+
+**Event Types**:
+
+**reminder.due** (sent by Dapr Jobs API):
+```json
+{
+  "event_type": "reminder.due",
+  "remind_at": "2026-02-15T09:00:00Z",
+  "task_data": { /* task info */ },
+  "notification_preferences": { /* user prefs */ }
+}
+```
+
+**reminder.scheduled**:
+```json
+{
+  "event_type": "reminder.scheduled",
+  "remind_at": "2026-02-15T09:00:00Z",
+  "metadata": {
+    "source": "manual",
+    "job_id": "dapr-job-uuid"
+  }
+}
+```
+
+**reminder.cancelled**:
+```json
+{
+  "event_type": "reminder.cancelled",
+  "metadata": {
+    "reason": "task_completed | task_deleted | user_cancelled"
+  }
+}
+```
+
+**Consumer Actions**:
+- **Notification Service**: On `reminder.due`, send notifications via enabled channels (web push, email, in-app)
+
+---
+
+### 3. Update Event (task-updates topic)
+
+**Purpose**: Published for real-time synchronization across connected clients.
+
+**Schema**:
+```json
+{
+  "schema_version": "1.0",
+  "event_id": "uuid-v4",
+  "event_type": "task.created | task.updated | task.deleted | task.completed",
+  "timestamp": "2026-02-10T14:30:00Z",
+  "user_id": "user-uuid",
+  "task_id": 123,
+  "operation": "create | update | delete | complete",
+  "data": {
+    /* Full task object or minimal update data */
+  },
+  "metadata": {
+    "source_device": "web | mobile",
+    "source_session": "session-uuid"
+  }
+}
+```
+
+**Field Descriptions**:
+- `event_type`: Type of update for client handling
+- `operation`: CRUD operation performed
+- `data`: Task data to sync to clients
+- `source_session`: Session ID that originated the change (to avoid echo)
+
+**Event Types**:
+
+**task.created**:
+```json
+{
+  "event_type": "task.created",
+  "operation": "create",
+  "data": { /* full task object */ }
+}
+```
+
+**task.updated**:
+```json
+{
+  "event_type": "task.updated",
+  "operation": "update",
+  "data": {
+    "id": 123,
+    "title": "Updated Title",
+    "priority": "high",
+    "version": 2,
+    /* only changed fields + id + version */
+  }
+}
+```
+
+**task.deleted**:
+```json
+{
+  "event_type": "task.deleted",
+  "operation": "delete",
+  "data": {
+    "id": 123
+  }
+}
+```
+
+**task.completed**:
+```json
+{
+  "event_type": "task.completed",
+  "operation": "complete",
+  "data": {
+    "id": 123,
+    "status": "complete",
+    "completed_at": "2026-02-10T14:30:00Z",
+    "version": 2
+  }
+}
+```
+
+**Consumer Actions**:
+- **WebSocket Service**: Broadcast to all connected clients for the user (except source session)
+
+---
+
+## Event Publishing (Dapr Pub/Sub)
+
+### Publishing via Dapr
+
+**Python Example**:
+```python
+import httpx
+import json
+from datetime import datetime
+
+async def publish_task_event(
+    event_type: str,
+    task: Task,
+    changes: dict = None,
+    metadata: dict = None
+):
+    """Publish task event to Kafka via Dapr Pub/Sub."""
+    event = {
+        "schema_version": "1.0",
+        "event_id": str(uuid.uuid4()),
+        "event_type": event_type,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "task_id": task.id,
+        "user_id": task.user_id,
+        "task_data": task.dict(),
+        "changes": changes,
+        "metadata": metadata or {}
+    }
+
+    async with httpx.AsyncClient() as client:
+        await client.post(
+            "http://localhost:3500/v1.0/publish/kafka-pubsub/task-events",
+            json=event
+        )
+```
+
+### Consuming via Dapr
+
+**Python Example**:
+```python
+from fastapi import FastAPI, Request
+
+app = FastAPI()
+
+@app.post("/dapr/subscribe")
+async def subscribe():
+    """Tell Dapr which topics to subscribe to."""
+    return [
+        {
+            "pubsubname": "kafka-pubsub",
+            "topic": "task-events",
+            "route": "/events/task-events"
+        }
+    ]
+
+@app.post("/events/task-events")
+async def handle_task_event(request: Request):
+    """Handle task event from Kafka."""
+    event = await request.json()
+
+    # Process event
+    if event["event_type"] == "completed":
+        await handle_task_completed(event)
+
+    return {"status": "SUCCESS"}
+```
+
+---
+
+## Event Ordering and Idempotency
+
+### Ordering Guarantees
+
+- **Kafka Partitioning**: Events for the same task go to the same partition (partition key = task_id)
+- **Order Guarantee**: Events for a single task are processed in order
+- **No Global Order**: Events across different tasks may be processed out of order
+
+### Idempotency
+
+All consumers must be idempotent (safe to process the same event multiple times):
+
+**Strategy**:
+1. Use `event_id` as deduplication key
+2. Store processed event IDs in database or cache (TTL: 24 hours)
+3. Skip processing if event_id already seen
+
+**Example**:
+```python
+async def handle_task_event(event: dict):
+    """Idempotent event handler."""
+    event_id = event["event_id"]
+
+    # Check if already processed
+    if await is_event_processed(event_id):
+        logger.info(f"Event {event_id} already processed, skipping")
+        return
+
+    # Process event
+    await process_event(event)
+
+    # Mark as processed
+    await mark_event_processed(event_id)
+```
+
+---
+
+## Schema Evolution
+
+### Versioning Strategy
+
+- **Version Format**: `major.minor` (e.g., "1.0", "1.1", "2.0")
+- **Backward Compatible Changes** (minor version bump):
+  - Add new optional fields
+  - Add new event types
+  - Expand enum values
+- **Breaking Changes** (major version bump):
+  - Remove fields
+  - Rename fields
+  - Change field types
+  - Change required fields
+
+### Consumer Compatibility
+
+Consumers must handle multiple schema versions:
+
+```python
+async def handle_task_event(event: dict):
+    """Handle task event with version awareness."""
+    version = event.get("schema_version", "1.0")
+
+    if version.startswith("1."):
+        # Handle v1.x events
+        await process_v1_event(event)
+    elif version.startswith("2."):
+        # Handle v2.x events
+        await process_v2_event(event)
+    else:
+        logger.warning(f"Unknown schema version: {version}")
+```
+
+---
+
+## Error Handling
+
+### Dead Letter Queue (DLQ)
+
+Failed events are sent to DLQ topics for manual inspection:
+
+- `task-events-dlq`
+- `reminders-dlq`
+- `task-updates-dlq`
+
+**DLQ Event Schema**:
+```json
+{
+  "original_event": { /* original event */ },
+  "error": {
+    "message": "Error message",
+    "stack_trace": "...",
+    "timestamp": "2026-02-10T14:30:00Z",
+    "consumer": "recurring-service",
+    "retry_count": 3
+  }
+}
+```
+
+### Retry Policy
+
+- **Max Retries**: 3 attempts
+- **Backoff**: Exponential (1s, 2s, 4s)
+- **After Max Retries**: Send to DLQ
+
+---
+
+## Monitoring and Observability
+
+### Metrics to Track
+
+- **Event Throughput**: Events/second per topic
+- **Consumer Lag**: How far behind consumers are
+- **Processing Time**: Time to process each event
+- **Error Rate**: Failed events / total events
+- **DLQ Size**: Number of events in dead letter queue
+
+### Logging
+
+All events should be logged with structured logging:
+
+```python
+logger.info(
+    "Event published",
+    extra={
+        "event_id": event["event_id"],
+        "event_type": event["event_type"],
+        "topic": "task-events",
+        "task_id": event["task_id"],
+        "user_id": event["user_id"]
+    }
+)
+```
+
+---
+
+## Summary
+
+This event schema design provides:
+- Clear event types for all operations
+- Versioning for schema evolution
+- Idempotency support via event_id
+- Ordering guarantees via partitioning
+- Error handling with DLQ
+- Observability through structured logging
+
+All events use JSON format for human readability and debugging, with the option to migrate to Avro later if needed for performance.

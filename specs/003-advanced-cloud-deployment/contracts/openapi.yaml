@@ -1,0 +1,939 @@
+openapi: 3.1.0
+info:
+  title: Todo App API - Phase 5 Enhanced
+  description: |
+    REST API for advanced task management with recurring tasks, reminders, priorities, tags, and search/filter capabilities.
+
+    **New in Phase 5**:
+    - Recurring task management
+    - Reminder scheduling
+    - Priority levels and tags
+    - Advanced search and filtering
+    - Activity history
+  version: 5.0.0
+  contact:
+    name: Todo App Team
+    url: https://github.com/todo-app
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://backend-gamma-seven-21.vercel.app
+    description: Production (Vercel)
+  - url: http://todo-app.local
+    description: Kubernetes (Minikube/Cloud)
+
+tags:
+  - name: tasks
+    description: Task CRUD operations
+  - name: recurring
+    description: Recurring task management
+  - name: reminders
+    description: Reminder scheduling
+  - name: search
+    description: Search and filtering
+  - name: tags
+    description: Tag management
+  - name: activity
+    description: Activity history
+  - name: auth
+    description: Authentication (existing from Phase 2)
+
+paths:
+  # ==================== TASKS (Extended) ====================
+  /api/tasks:
+    get:
+      summary: List user's tasks
+      description: Get all tasks for authenticated user with optional filters
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [incomplete, complete]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [high, medium, low]
+        - name: tags
+          in: query
+          description: Comma-separated tag names
+          schema:
+            type: string
+          example: "work,urgent"
+        - name: due_date_start
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: due_date_end
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [priority, due_date, created_at, title]
+            default: created_at
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+    post:
+      summary: Create new task
+      description: Create a new task with optional priority, tags, due date, and recurrence
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/tasks/{task_id}:
+    get:
+      summary: Get task by ID
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+
+    put:
+      summary: Update task
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '409':
+          description: Conflict - version mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
+
+    delete:
+      summary: Delete task
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Task deleted
+        '404':
+          description: Task not found
+
+  /api/tasks/{task_id}/complete:
+    post:
+      summary: Mark task as complete
+      tags: [tasks]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Task marked complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+
+  # ==================== RECURRING TASKS ====================
+  /api/recurring:
+    get:
+      summary: List recurring patterns
+      description: Get all recurring patterns for authenticated user
+      tags: [recurring]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of recurring patterns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecurringPattern'
+
+    post:
+      summary: Create recurring pattern
+      tags: [recurring]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringPatternCreate'
+      responses:
+        '201':
+          description: Recurring pattern created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringPattern'
+
+  /api/recurring/{pattern_id}:
+    get:
+      summary: Get recurring pattern
+      tags: [recurring]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: pattern_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Recurring pattern details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringPattern'
+
+    put:
+      summary: Update recurring pattern
+      tags: [recurring]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: pattern_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringPatternUpdate'
+      responses:
+        '200':
+          description: Recurring pattern updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecurringPattern'
+
+    delete:
+      summary: Disable recurring pattern
+      description: Disables the recurring pattern (sets is_active to false)
+      tags: [recurring]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: pattern_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Recurring pattern disabled
+
+  # ==================== REMINDERS ====================
+  /api/reminders:
+    get:
+      summary: List reminders
+      description: Get all reminders for authenticated user
+      tags: [reminders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, sent, cancelled, failed]
+      responses:
+        '200':
+          description: List of reminders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Reminder'
+
+    post:
+      summary: Create reminder
+      tags: [reminders]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReminderCreate'
+      responses:
+        '201':
+          description: Reminder created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reminder'
+
+  /api/reminders/{reminder_id}:
+    delete:
+      summary: Cancel reminder
+      tags: [reminders]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reminder_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Reminder cancelled
+
+  # ==================== SEARCH ====================
+  /api/search:
+    get:
+      summary: Search tasks
+      description: Full-text search with filters
+      tags: [search]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [incomplete, complete]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [high, medium, low]
+        - name: tags
+          in: query
+          description: Comma-separated tag names
+          schema:
+            type: string
+        - name: due_date_start
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: due_date_end
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TaskSearchResult'
+                  total:
+                    type: integer
+                  query:
+                    type: string
+
+  # ==================== TAGS ====================
+  /api/tags:
+    get:
+      summary: List tags
+      description: Get all tags for authenticated user
+      tags: [tags]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tag'
+
+    post:
+      summary: Create tag
+      tags: [tags]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagCreate'
+      responses:
+        '201':
+          description: Tag created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+
+  /api/tags/{tag_id}:
+    put:
+      summary: Update tag
+      tags: [tags]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagUpdate'
+      responses:
+        '200':
+          description: Tag updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+
+    delete:
+      summary: Delete tag
+      tags: [tags]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tag_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Tag deleted
+
+  # ==================== ACTIVITY ====================
+  /api/activity:
+    get:
+      summary: Get activity history
+      description: Get activity logs for authenticated user
+      tags: [activity]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: query
+          description: Filter by task ID
+          schema:
+            type: integer
+        - name: activity_type
+          in: query
+          schema:
+            type: string
+            enum: [created, updated, completed, reopened, deleted, tag_added, tag_removed, reminder_set, reminder_cancelled]
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Activity history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ActivityLog'
+                  total:
+                    type: integer
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [incomplete, complete]
+        priority:
+          type: string
+          enum: [high, medium, low]
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        recurring_pattern_id:
+          type: integer
+          nullable: true
+        parent_task_id:
+          type: integer
+          nullable: true
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        reminders:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reminder'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        version:
+          type: integer
+        user_id:
+          type: string
+
+    TaskCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        priority:
+          type: string
+          enum: [high, medium, low]
+          default: medium
+        due_date:
+          type: string
+          format: date-time
+        tags:
+          type: array
+          items:
+            type: string
+        recurring_pattern:
+          $ref: '#/components/schemas/RecurringPatternCreate'
+        reminder_minutes_before:
+          type: integer
+          description: Minutes before due date to send reminder
+          minimum: 0
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        priority:
+          type: string
+          enum: [high, medium, low]
+        due_date:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [incomplete, complete]
+        version:
+          type: integer
+          description: Current version for optimistic locking
+
+    TaskSearchResult:
+      allOf:
+        - $ref: '#/components/schemas/Task'
+        - type: object
+          properties:
+            rank:
+              type: number
+              description: Search relevance score
+
+    RecurringPattern:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: string
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, custom]
+        interval:
+          type: integer
+          minimum: 1
+        start_date:
+          type: string
+          format: date-time
+        weekly_days:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+          nullable: true
+        monthly_day:
+          type: integer
+          minimum: 1
+          maximum: 31
+          nullable: true
+        end_type:
+          type: string
+          enum: [never, after_occurrences, by_date]
+        end_date:
+          type: string
+          format: date-time
+          nullable: true
+        max_occurrences:
+          type: integer
+          nullable: true
+        current_occurrence:
+          type: integer
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    RecurringPatternCreate:
+      type: object
+      required:
+        - frequency
+        - start_date
+      properties:
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, custom]
+        interval:
+          type: integer
+          minimum: 1
+          default: 1
+        start_date:
+          type: string
+          format: date-time
+        weekly_days:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+        monthly_day:
+          type: integer
+          minimum: 1
+          maximum: 31
+        end_type:
+          type: string
+          enum: [never, after_occurrences, by_date]
+          default: never
+        end_date:
+          type: string
+          format: date-time
+        max_occurrences:
+          type: integer
+
+    RecurringPatternUpdate:
+      type: object
+      properties:
+        interval:
+          type: integer
+          minimum: 1
+        weekly_days:
+          type: array
+          items:
+            type: integer
+        monthly_day:
+          type: integer
+        end_type:
+          type: string
+          enum: [never, after_occurrences, by_date]
+        end_date:
+          type: string
+          format: date-time
+        max_occurrences:
+          type: integer
+        is_active:
+          type: boolean
+
+    Reminder:
+      type: object
+      properties:
+        id:
+          type: integer
+        task_id:
+          type: integer
+        user_id:
+          type: string
+        remind_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [pending, sent, cancelled, failed]
+        sent_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    ReminderCreate:
+      type: object
+      required:
+        - task_id
+        - remind_at
+      properties:
+        task_id:
+          type: integer
+        remind_at:
+          type: string
+          format: date-time
+
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    TagCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+
+    TagUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+
+    ActivityLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        task_id:
+          type: integer
+        user_id:
+          type: string
+        activity_type:
+          type: string
+          enum: [created, updated, completed, reopened, deleted, tag_added, tag_removed, reminder_set, reminder_cancelled]
+        timestamp:
+          type: string
+          format: date-time
+        changes:
+          type: object
+          nullable: true
+        ip_address:
+          type: string
+          nullable: true
+        user_agent:
+          type: string
+          nullable: true
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+    ConflictError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "conflict"
+        message:
+          type: string
+          example: "Task was modified by another client"
+        current_version:
+          type: integer
+        your_version:
+          type: integer
+        current_data:
+          $ref: '#/components/schemas/Task'
