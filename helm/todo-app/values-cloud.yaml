@@ -1,0 +1,284 @@
+# Values for cloud deployment (AKS/GKE/OKE)
+# Override default values for production cloud environments
+
+# Global settings
+global:
+  environment: production
+  domain: todoapp.com
+
+# Image settings
+image:
+  registry: gcr.io  # or azurecr.io for Azure, or your registry
+  pullPolicy: Always
+  pullSecrets:
+    - name: registry-credentials
+
+# Backend service
+backend:
+  replicaCount: 5
+  image:
+    repository: todoapp/backend
+    tag: "5.0.0"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 5
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    LOG_LEVEL: INFO
+    CORS_ORIGINS: "https://todoapp.com,https://www.todoapp.com"
+  dapr:
+    enabled: true
+    appId: backend
+    appPort: 8000
+
+# Frontend service
+frontend:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+# WebSocket service
+websocket:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 15
+    targetCPUUtilizationPercentage: 70
+  env:
+    REDIS_ENABLED: "true"
+
+# Notification service
+notification:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Recurring service
+recurring:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Audit service
+audit:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# PostgreSQL database
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: postgres-credentials
+  primary:
+    persistence:
+      enabled: true
+      size: 100Gi
+      storageClass: premium-ssd  # Use cloud provider's premium storage
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+  readReplicas:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 100Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+# Redis cache
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    existingSecret: redis-credentials
+  master:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: premium-ssd
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+  replica:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+# Kafka message broker
+kafka:
+  enabled: true
+  replicaCount: 5
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: premium-ssd
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+    limits:
+      cpu: 4000m
+      memory: 4Gi
+  zookeeper:
+    enabled: true
+    replicaCount: 3
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  hosts:
+    - host: todoapp.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 3000
+        - path: /api
+          pathType: Prefix
+          service: backend
+          port: 8000
+        - path: /ws
+          pathType: Prefix
+          service: websocket-service
+          port: 8001
+    - host: www.todoapp.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 3000
+  tls:
+    - secretName: todoapp-tls
+      hosts:
+        - todoapp.com
+        - www.todoapp.com
+
+# Dapr configuration
+dapr:
+  enabled: true
+  version: "1.12"
+  components:
+    pubsub:
+      name: kafka-pubsub
+      type: pubsub.kafka
+    statestore:
+      name: postgres-state
+      type: state.postgresql
+    secretstore:
+      name: kubernetes-secrets
+      type: secretstores.kubernetes
+    jobs:
+      name: jobs-scheduler
+      type: bindings.cron
+
+# Monitoring
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    retention: 30d
+    storageSize: 50Gi
+  grafana:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 10Gi
+
+# Service mesh
+serviceMesh:
+  enabled: true
+  type: istio
+
+# Network policies
+networkPolicies:
+  enabled: true
+
+# Pod security policies
+podSecurityPolicy:
+  enabled: true
+
+# Backup configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 30

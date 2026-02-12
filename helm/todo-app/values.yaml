@@ -1,0 +1,268 @@
+# Default values for todo-app
+# This is a YAML-formatted file.
+
+# Global settings
+global:
+  environment: production
+  domain: todoapp.example.com
+
+# Image settings
+image:
+  registry: docker.io
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Backend service
+backend:
+  enabled: true
+  name: backend
+  replicaCount: 3
+  image:
+    repository: todoapp/backend
+    tag: "5.0.0"
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  env:
+    LOG_LEVEL: INFO
+    CORS_ORIGINS: "*"
+  dapr:
+    enabled: true
+    appId: backend
+    appPort: 8000
+
+# Frontend service
+frontend:
+  enabled: true
+  name: frontend
+  replicaCount: 2
+  image:
+    repository: todoapp/frontend
+    tag: "5.0.0"
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# WebSocket service
+websocket:
+  enabled: true
+  name: websocket-service
+  replicaCount: 2
+  image:
+    repository: todoapp/websocket-service
+    tag: "5.0.0"
+  service:
+    type: ClusterIP
+    port: 8001
+    targetPort: 8001
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+  env:
+    REDIS_ENABLED: "true"
+
+# Notification service
+notification:
+  enabled: true
+  name: notification-service
+  replicaCount: 2
+  image:
+    repository: todoapp/notification-service
+    tag: "5.0.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  dapr:
+    enabled: true
+    appId: notification-service
+
+# Recurring service
+recurring:
+  enabled: true
+  name: recurring-service
+  replicaCount: 2
+  image:
+    repository: todoapp/recurring-service
+    tag: "5.0.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  dapr:
+    enabled: true
+    appId: recurring-service
+
+# Audit service
+audit:
+  enabled: true
+  name: audit-service
+  replicaCount: 2
+  image:
+    repository: todoapp/audit-service
+    tag: "5.0.0"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# PostgreSQL database
+postgresql:
+  enabled: true
+  auth:
+    username: todoapp
+    password: changeme
+    database: todoapp
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# Redis cache
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: changeme
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Kafka message broker
+kafka:
+  enabled: true
+  replicaCount: 3
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+  zookeeper:
+    enabled: true
+    replicaCount: 3
+    persistence:
+      enabled: true
+      size: 5Gi
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: todoapp.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 3000
+        - path: /api
+          pathType: Prefix
+          service: backend
+          port: 8000
+        - path: /ws
+          pathType: Prefix
+          service: websocket-service
+          port: 8001
+  tls:
+    - secretName: todoapp-tls
+      hosts:
+        - todoapp.example.com
+
+# Dapr configuration
+dapr:
+  enabled: true
+  version: "1.12"
+  components:
+    pubsub:
+      name: kafka-pubsub
+      type: pubsub.kafka
+    statestore:
+      name: postgres-state
+      type: state.postgresql
+    secretstore:
+      name: kubernetes-secrets
+      type: secretstores.kubernetes
+    jobs:
+      name: jobs-scheduler
+      type: bindings.cron
+
+# Monitoring
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+
+# Service mesh
+serviceMesh:
+  enabled: false
+  type: istio

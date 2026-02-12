@@ -15,6 +15,7 @@ from .api.middleware import (
     generic_exception_handler,
 )
 from .db import init_db
+from .dapr import DaprPubSubClient, DaprStateClient, DaprJobsClient, DaprSecretsClient
 
 # Configure logging
 logging.basicConfig(
@@ -23,6 +24,12 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+# Initialize Dapr clients (global instances)
+dapr_pubsub = DaprPubSubClient()
+dapr_state = DaprStateClient()
+dapr_jobs = DaprJobsClient()
+dapr_secrets = DaprSecretsClient()
 
 # Create FastAPI app
 app = FastAPI(
@@ -51,8 +58,8 @@ app.add_exception_handler(Exception, generic_exception_handler)
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup."""
-    logger.info("Starting up Todo API...")
+    """Initialize database and Dapr clients on startup."""
+    logger.info("Starting up Todo API (Phase 5 - Event-Driven Architecture)...")
     try:
         # In serverless, skip DB init to avoid cold start issues
         if not os.getenv("VERCEL"):
@@ -60,8 +67,16 @@ async def startup_event():
             logger.info("Database initialized successfully")
         else:
             logger.info("Skipping DB init in serverless environment")
+
+        # Initialize Dapr clients
+        logger.info("Dapr clients initialized:")
+        logger.info(f"  - Pub/Sub: {dapr_pubsub.pubsub_name}")
+        logger.info(f"  - State Store: {dapr_state.store_name}")
+        logger.info(f"  - Jobs API: enabled")
+        logger.info(f"  - Secrets Store: {dapr_secrets.store_name}")
+
     except Exception as e:
-        logger.warning(f"Database initialization skipped: {e}")
+        logger.warning(f"Initialization warning: {e}")
 
 
 @app.on_event("shutdown")
@@ -75,7 +90,17 @@ async def root():
     """Root endpoint - health check."""
     return {
         "message": "Todo API is running",
-        "version": "2.0.0",
+        "version": "5.0.0",
+        "phase": "Phase 5 - Advanced Cloud Deployment",
+        "features": [
+            "Recurring Tasks",
+            "Smart Reminders",
+            "Priorities & Tags",
+            "Advanced Search",
+            "Real-Time Sync",
+            "Activity History",
+            "Event-Driven Architecture (Kafka + Dapr)"
+        ],
         "docs": "/docs",
     }
 
@@ -87,10 +112,15 @@ async def health_check():
 
 
 # Import and include routers
-from .api.routes import auth, tasks
+from .api.routes import auth, tasks, recurring, reminders, tags, search, activity
 
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(tasks.router, prefix="/api/users", tags=["Tasks"])
+app.include_router(recurring.router, prefix="/api", tags=["Recurring Tasks"])
+app.include_router(reminders.router, prefix="/api", tags=["Reminders"])
+app.include_router(tags.router, prefix="/api", tags=["Tags"])
+app.include_router(search.router, prefix="/api", tags=["Search"])
+app.include_router(activity.router, prefix="/api", tags=["Activity"])
 
 # Chat router - optional, only load if dependencies are available
 try:

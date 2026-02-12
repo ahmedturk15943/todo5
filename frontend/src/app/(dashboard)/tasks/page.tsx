@@ -263,14 +263,27 @@
 
 'use client' // MUST be first line
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import apiClient from '@/lib/api'
 import { getCurrentUser } from '@/lib/auth'
 import Navigation from '@/components/Navigation'
 import TaskList from '@/components/tasks/TaskList'
 import TaskForm from '@/components/tasks/TaskForm'
+import { useRealTimeSync } from '@/hooks/useRealTimeSync'
 import type { Task } from '@/types/task'
+
+// Generate a unique device ID for this browser session
+const getDeviceId = () => {
+  if (typeof window === 'undefined') return 'server'
+
+  let deviceId = sessionStorage.getItem('device_id')
+  if (!deviceId) {
+    deviceId = `device-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    sessionStorage.setItem('device_id', deviceId)
+  }
+  return deviceId
+}
 
 export default function TasksPage() {
   const router = useRouter()
@@ -280,6 +293,33 @@ export default function TasksPage() {
   const [showForm, setShowForm] = useState(false)
 
   const currentUser = getCurrentUser()
+
+  // Real-time sync callbacks
+  const handleRealtimeTaskUpdate = useCallback((task: Task) => {
+    setTasks(prev => {
+      const existingIndex = prev.findIndex(t => t.id === task.id)
+      if (existingIndex >= 0) {
+        // Update existing task
+        const updated = [...prev]
+        updated[existingIndex] = task
+        return updated
+      } else {
+        // Add new task
+        return [task, ...prev]
+      }
+    })
+  }, [])
+
+  const handleRealtimeTaskDelete = useCallback((taskId: number) => {
+    setTasks(prev => prev.filter(task => task.id !== taskId))
+  }, [])
+
+  // Initialize real-time sync
+  const { connected } = useRealTimeSync(
+    currentUser?.id,
+    handleRealtimeTaskUpdate,
+    handleRealtimeTaskDelete
+  )
 
   useEffect(() => {
     if (!currentUser) {
@@ -327,6 +367,16 @@ export default function TasksPage() {
       <Navigation />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Connection Status Indicator */}
+        <div className="mb-4 flex items-center justify-end">
+          <div className="flex items-center space-x-2 text-sm">
+            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+            <span className="text-gray-600">
+              {connected ? 'Real-time sync active' : 'Connecting...'}
+            </span>
+          </div>
+        </div>
+
         <div className="mb-6">
           <button onClick={() => setShowForm(!showForm)} className="btn-primary">
             {showForm ? 'Cancel' : '+ Add Task'}

@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.websocket.name }}
+  labels:
+    app: {{ .Values.websocket.name }}
+    version: {{ .Values.image.tag | default .Chart.AppVersion }}
+spec:
+  replicas: {{ .Values.websocket.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.websocket.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.websocket.name }}
+        version: {{ .Values.image.tag | default .Chart.AppVersion }}
+    spec:
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: websocket-service
+        image: "{{ .Values.image.registry }}/{{ .Values.websocket.image.repository }}:{{ .Values.websocket.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.websocket.service.targetPort }}
+          protocol: TCP
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "{{ .Release.Name }}-kafka:9092"
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-credentials
+              key: connection-string
+        - name: REDIS_ENABLED
+          value: {{ .Values.websocket.env.REDIS_ENABLED | quote }}
+        - name: LOG_LEVEL
+          value: INFO
+        - name: PORT
+          value: "{{ .Values.websocket.service.targetPort }}"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.websocket.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL

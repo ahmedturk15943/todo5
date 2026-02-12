@@ -1,0 +1,181 @@
+# Values for local Minikube deployment
+# Override default values for local development
+
+# Global settings
+global:
+  environment: local
+  domain: todoapp.local
+
+# Backend service
+backend:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: false
+  env:
+    LOG_LEVEL: DEBUG
+    CORS_ORIGINS: "http://localhost:3000,http://todoapp.local"
+
+# Frontend service
+frontend:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+
+# WebSocket service
+websocket:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: false
+  env:
+    REDIS_ENABLED: "false"  # Single instance mode for local
+
+# Notification service
+notification:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# Recurring service
+recurring:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# Audit service
+audit:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+# PostgreSQL database
+postgresql:
+  enabled: true
+  auth:
+    username: todoapp
+    password: todoapp123
+    database: todoapp
+  primary:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Redis cache
+redis:
+  enabled: true
+  auth:
+    enabled: false  # Disable auth for local development
+  master:
+    persistence:
+      enabled: true
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+
+# Kafka message broker
+kafka:
+  enabled: true
+  replicaCount: 1  # Single broker for local
+  persistence:
+    enabled: true
+    size: 2Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  zookeeper:
+    enabled: true
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 1Gi
+
+# Ingress configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+  hosts:
+    - host: todoapp.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: frontend
+          port: 3000
+        - path: /api
+          pathType: Prefix
+          service: backend
+          port: 8000
+        - path: /ws
+          pathType: Prefix
+          service: websocket-service
+          port: 8001
+  tls: []  # No TLS for local
+
+# Dapr configuration
+dapr:
+  enabled: true
+  version: "1.12"
+
+# Monitoring
+monitoring:
+  enabled: false  # Disable monitoring for local to save resources
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false
+
+# Service mesh
+serviceMesh:
+  enabled: false

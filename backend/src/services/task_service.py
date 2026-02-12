@@ -2,11 +2,18 @@
 
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 import uuid
 import html
+from datetime import datetime
 
 from ..models.task import Task, TaskCreate, TaskUpdate
+
+
+class OptimisticLockError(Exception):
+    """Raised when optimistic locking detects a conflict."""
+    pass
 
 
 class TaskService:
@@ -107,26 +114,38 @@ class TaskService:
         user_id: uuid.UUID,
         task_data: TaskUpdate,
         session: AsyncSession,
+        expected_version: Optional[int] = None,
     ) -> Optional[Task]:
         """
-        Update a task.
+        Update a task with optimistic locking.
 
         Args:
             task_id: Task ID
             user_id: User's UUID (for authorization)
             task_data: Task update data
             session: Database session
+            expected_version: Expected version for optimistic locking
 
         Returns:
             Updated task if found, None otherwise
 
         Raises:
             ValueError: If validation fails
+            OptimisticLockError: If version mismatch detected
         """
         # Get existing task
         task = await TaskService.get_task_by_id(task_id, user_id, session)
         if not task:
             return None
+
+        # Optimistic locking check
+        if expected_version is not None:
+            current_version = getattr(task, 'version', 1)
+            if current_version != expected_version:
+                raise OptimisticLockError(
+                    f"Task has been modified by another process. "
+                    f"Expected version {expected_version}, but current version is {current_version}"
+                )
 
         # Update title if provided
         if task_data.title is not None:
@@ -140,8 +159,10 @@ class TaskService:
             description = task_data.description.strip()
             task.description = TaskService._escape_html(description) if description else None
 
-        # Update timestamp
+        # Update timestamp and increment version
         task.updated_at = datetime.utcnow()
+        if hasattr(task, 'version'):
+            task.version = (task.version or 1) + 1
 
         await session.commit()
         await session.refresh(task)

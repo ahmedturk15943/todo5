@@ -1,0 +1,30 @@
+apiVersion: v2
+name: todo-app
+description: A Helm chart for Todo App with event-driven architecture
+type: application
+version: 1.0.0
+appVersion: "5.0.0"
+
+keywords:
+  - todo
+  - tasks
+  - event-driven
+  - microservices
+
+maintainers:
+  - name: Todo App Team
+    email: team@todoapp.com
+
+dependencies:
+  - name: postgresql
+    version: "12.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
+  - name: redis
+    version: "17.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+  - name: kafka
+    version: "22.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: kafka.enabled

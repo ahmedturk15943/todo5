@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.audit.name }}
+  labels:
+    app: {{ .Values.audit.name }}
+    version: {{ .Values.image.tag | default .Chart.AppVersion }}
+spec:
+  replicas: {{ .Values.audit.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.audit.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.audit.name }}
+        version: {{ .Values.image.tag | default .Chart.AppVersion }}
+    spec:
+      {{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.image.pullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: audit-service
+        image: "{{ .Values.image.registry }}/{{ .Values.audit.image.repository }}:{{ .Values.audit.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: connection-string
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "{{ .Release.Name }}-kafka:9092"
+        - name: LOG_LEVEL
+          value: INFO
+        resources:
+          {{- toYaml .Values.audit.resources | nindent 10 }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL

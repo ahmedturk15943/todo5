@@ -1,0 +1,57 @@
+{{- if .Values.backend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.backend.name }}
+  labels:
+    app: {{ .Values.backend.name }}
+spec:
+  type: {{ .Values.backend.service.type }}
+  ports:
+  - port: {{ .Values.backend.service.port }}
+    targetPort: {{ .Values.backend.service.targetPort }}
+    protocol: TCP
+    name: http
+  selector:
+    app: {{ .Values.backend.name }}
+{{- end }}
+---
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.frontend.name }}
+  labels:
+    app: {{ .Values.frontend.name }}
+spec:
+  type: {{ .Values.frontend.service.type }}
+  ports:
+  - port: {{ .Values.frontend.service.port }}
+    targetPort: {{ .Values.frontend.service.targetPort }}
+    protocol: TCP
+    name: http
+  selector:
+    app: {{ .Values.frontend.name }}
+{{- end }}
+---
+{{- if .Values.websocket.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.websocket.name }}
+  labels:
+    app: {{ .Values.websocket.name }}
+spec:
+  type: {{ .Values.websocket.service.type }}
+  ports:
+  - port: {{ .Values.websocket.service.port }}
+    targetPort: {{ .Values.websocket.service.targetPort }}
+    protocol: TCP
+    name: http
+  selector:
+    app: {{ .Values.websocket.name }}
+  sessionAffinity: ClientIP  # Sticky sessions for WebSocket
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+{{- end }}

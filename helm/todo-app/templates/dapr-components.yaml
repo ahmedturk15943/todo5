@@ -1,0 +1,64 @@
+{{- if .Values.dapr.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dapr-components
+  labels:
+    app: {{ .Release.Name }}
+data:
+  pubsub-kafka.yaml: |
+    apiVersion: dapr.io/v1alpha1
+    kind: Component
+    metadata:
+      name: {{ .Values.dapr.components.pubsub.name }}
+    spec:
+      type: {{ .Values.dapr.components.pubsub.type }}
+      version: v1
+      metadata:
+      - name: brokers
+        value: "{{ .Release.Name }}-kafka:9092"
+      - name: consumerGroup
+        value: "todo-app"
+      - name: clientId
+        value: "todo-app-client"
+      - name: authType
+        value: "none"
+
+  statestore-postgres.yaml: |
+    apiVersion: dapr.io/v1alpha1
+    kind: Component
+    metadata:
+      name: {{ .Values.dapr.components.statestore.name }}
+    spec:
+      type: {{ .Values.dapr.components.statestore.type }}
+      version: v1
+      metadata:
+      - name: connectionString
+        secretKeyRef:
+          name: postgres-credentials
+          key: connection-string
+      - name: tableName
+        value: "dapr_state"
+
+  secretstore-kubernetes.yaml: |
+    apiVersion: dapr.io/v1alpha1
+    kind: Component
+    metadata:
+      name: {{ .Values.dapr.components.secretstore.name }}
+    spec:
+      type: {{ .Values.dapr.components.secretstore.type }}
+      version: v1
+      metadata: []
+
+  jobs-scheduler.yaml: |
+    apiVersion: dapr.io/v1alpha1
+    kind: Component
+    metadata:
+      name: {{ .Values.dapr.components.jobs.name }}
+    spec:
+      type: {{ .Values.dapr.components.jobs.type }}
+      version: v1
+      metadata:
+      - name: direction
+        value: "output"
+{{- end }}
